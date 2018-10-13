@@ -3,6 +3,8 @@
 // Change this to netid of any member of team
 package krt170130;
 
+import sun.awt.X11.XConstants;
+
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Random;
@@ -45,6 +47,9 @@ public class SkipList<T extends Comparable<? super T>> {
         this.random = new Random();
 
         // Initialize last of each level at head so that in case in add method when we call chooselevel after add it won't throw any exception if maxLevel increases by chooselevel.
+        setup();
+    }
+    private void setup() {
         for (int i=0;i<33;i++) {
             this.last[i] = this.head;
             this.head.next[i] = this.tail;
@@ -91,7 +96,7 @@ public class SkipList<T extends Comparable<? super T>> {
     public boolean add(T x) {
         if(contains(x)) return false;
         int level = chooseLevel();
-        System.out.println(x + " " + level);
+//        System.out.println(x + " " + level);
         int[] levelSpan = findWithSpan(x, level);
         int currSpan = 0;
         Entry ent = new Entry(x, level);
@@ -103,10 +108,14 @@ public class SkipList<T extends Comparable<? super T>> {
             currSpan += levelSpan[i];
         }
 
-        for(int i = level; i<33;i++) {
+        for(int i = level; i<this.maxLevel;i++) {
             this.last[i].span[i]++;
         }
-
+        /*System.out.println(this.maxLevel);
+        for (int i=0;i<this.maxLevel;i++) {
+            System.out.print(this.head.span[i] +  " ");
+        }
+        System.out.println();*/
         ent.next[0].prev = ent;
         ent.prev = this.last[0];
         this.size++;
@@ -117,7 +126,12 @@ public class SkipList<T extends Comparable<? super T>> {
         int level =1;
         level = 1 + Integer.numberOfTrailingZeros(random.nextInt());
         level = Math.min(level, this.maxLevel + 1);
-        if(level > this.maxLevel) this.maxLevel = level;
+        if(level > this.maxLevel){
+            for (int i=this.maxLevel;i<level;i++) {
+                this.head.span[i] = this.size;
+            }
+            this.maxLevel = level;
+        }
         return level;
     }
 
@@ -205,21 +219,50 @@ public class SkipList<T extends Comparable<? super T>> {
         int maxHeight = (int) Math.floor((Math.log(this.size)) / (Math.log(2))) + 1;
         int[] heights = new int[this.size];
         setHeights(heights, 0, this.size - 1, maxHeight);
-        T[] elements = (T[]) new Comparable[this.size];
+        Entry[] elements = new Entry[this.size];
         copy(elements);
-        for (int i=0;i<maxHeight;i++) {
+        reset(heights, elements);
+        for (int i=1;i<=maxHeight;i++) {
             build(i, heights, elements);
         }
     }
 
-    private void build(int level, int[] heights, T[] elements) {
-
+    private void reset(int[] heights, Entry[] elements) {
+        setup();
+        this.head.next[0] = elements[0];
+        int n = heights.length;
+        for (int i=0;i<n;i++) {
+            elements[i].next = new Entry[heights[i]];
+            elements[i].span = new int[heights[i]];
+            if(i != heights.length - 1) {
+                elements[i].next[0] = elements[i+1];
+                elements[i].span[0] = 1;
+            }
+        }
+        elements[n-1].next[0]= this.tail;
     }
 
-    private void copy(T[] elements) {
+    private void build(int level, int[] heights, Entry[] elements) {
+        int n = elements.length;
+        Entry prev = this.head;
+        int prevIdx = 0;
+        System.out.println(level);
+        for (int i=0;i<n;i++) {
+            if(heights[i] >= level) {
+                prev.next[level-1] = elements[i];
+                prev.span[level-1] = i - prevIdx;
+                prev = elements[i];
+                prevIdx = i;
+            }
+        }
+        prev.span[level-1] = n - prevIdx - 1;
+        prev.next[level-1] = this.tail;
+    }
+
+    private void copy(Entry[] elements) {
         Entry curr = this.head.next[0];
         for (int i=0;i<elements.length;i++) {
-            elements[i] = (T) curr.element;
+            elements[i] = curr;
             curr = curr.next[0];
         }
     }
